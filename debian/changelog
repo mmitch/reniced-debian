@@ -1,0 +1,37 @@
+reniced (1.13-1) unstable; urgency=low
+
+  * New upstream release
+    * enable setting of io priorities through ionice
+    * fix PRIO_PROCESS inquiry (pure luck that this has worked so far)
+
+  * Recommends: schedutils which provides ionice
+  * Set debhelper compatibility level to 5
+  * Update FSF address in copyright file, link to GPL-2 instead of GPL
+  * Bump standards version from 3.6.1 to 3.7.2 (no changes)
+  
+  * Import changes from official Debian package
+    * change priority to extra because of libbsd-resource-perl
+
+ -- Christian Garbs <debian@cgarbs.de>  Fri, 20 Apr 2007 22:37:03 +0200
+
+reniced (1.5-1) unstable; urgency=low
+
+  * New upstream release
+  * install manpage
+  * update download location in copyright file
+
+ -- Christian Garbs <debian@cgarbs.de>  Sun, 17 Apr 2005 13:12:30 +0200
+
+reniced (1.4-2) unstable; urgency=low
+
+  * run dh_perl
+  * fix Depends:
+  * fix typo in package description
+
+ -- Christian Garbs <debian@cgarbs.de>  Sun, 17 Apr 2005 00:31:45 +0200
+
+reniced (1.4-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Christian Garbs <debian@cgarbs.de>  Sat, 16 Apr 2005 23:59:25 +0200
