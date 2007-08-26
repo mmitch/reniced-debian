@@ -1,0 +1,50 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          reniced
+# Required-Start:    $all
+# Required-Stop:     $all
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: renices running processes
+# Description:       reniced takes a list of regular expressions,
+#                    looks for processes matching them
+#                    and renices the processes to given values.
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+PROG=/usr/bin/reniced
+NAME=reniced
+DESC=reniced
+
+test -x $PROG || exit 0
+
+set -e
+
+case "$1" in
+  start)
+	echo -n "Starting $DESC: "
+	$PROG
+	echo "$NAME."
+	;;
+  stop)
+	echo -n "Stopping $DESC: "
+	echo -n "(not supported, no effect) "
+	echo "$NAME."
+	;;
+  status)
+	echo -n "No status information for $DESC."
+	;;
+  restart|force-reload)
+	echo -n "Restarting $DESC: "
+	$PROG
+	echo "$NAME."
+	;;
+  *)
+	N=/etc/init.d/$NAME
+	echo "Usage: $N {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

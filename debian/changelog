@@ -1,18 +1,42 @@
-reniced (1.13-1) unstable; urgency=low
+reniced (1.17-1) unstable; urgency=low
 
-  * New upstream release
-    * enable setting of io priorities through ionice
-    * fix PRIO_PROCESS inquiry (pure luck that this has worked so far)
-
-  * Recommends: schedutils which provides ionice
-  * Set debhelper compatibility level to 5
-  * Update FSF address in copyright file, link to GPL-2 instead of GPL
-  * Bump standards version from 3.6.1 to 3.7.2 (no changes)
+  * New maintainer, as agreed with bartm.
+  * Version 1.7-1 should have been 1.17-1, hereby fixed.
+  * Install upstream HISTORY file (changelog).
+  * Use sequence number 99 for init script.
+  * Update copyright file.
+  * Add README.Debian.
   
-  * Import changes from official Debian package
-    * change priority to extra because of libbsd-resource-perl
+ -- Christian Garbs <debian@cgarbs.de>  Sun, 26 Aug 2007 20:14:36 +0200
 
- -- Christian Garbs <debian@cgarbs.de>  Fri, 20 Apr 2007 22:37:03 +0200
+reniced (1.7-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Bart Martens <bartm@knars.be>  Wed, 08 Aug 2007 19:20:04 +0200
+
+reniced (1.5-4) unstable; urgency=low
+
+  * debian/*: Switched to cdbs.
+  * debian/control: Priority "extra" because libbsd-resource-perl has "extra".
+
+ -- Bart Martens <bartm@knars.be>  Sat,  4 Nov 2006 17:27:24 +0100
+
+reniced (1.5-3) unstable; urgency=low
+
+  * reniced.conf: Commented out all lines.
+  * debian/init.d, debian/rules: Install init.d script.  Closes: #389121.
+
+ -- Bart Martens <bartm@knars.be>  Sun, 24 Sep 2006 10:01:41 +0200
+
+reniced (1.5-2) unstable; urgency=low
+
+  * Copied from Ubuntu to Debian.  Closes: #381201.
+  * debian/*: Repackaged with dh-make 0.41.
+  * debian/copyright: Updated.
+  * debian/watch: Added.
+
+ -- Bart Martens <bartm@knars.be>  Wed,  2 Aug 2006 21:00:17 +0200
 
 reniced (1.5-1) unstable; urgency=low
 

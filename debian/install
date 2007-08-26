@@ -1,0 +1,2 @@
+reniced usr/bin
+reniced.conf etc/

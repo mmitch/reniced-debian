@@ -1,0 +1,24 @@
+reniced for Debian
+------------------
+
+Because of #389121, reniced now has an init script.  Even when it is
+called very late (it has a sequence number of 99), it will propably
+not act on all your processes.  On the other hand, the init script
+will ensure (if you didn't turn it off) a reniced run when you upgrade
+the package.
+
+As reniced can only renice those processes already running, it should
+be called regularly to act on new or restarted processes as well.
+To accomplish this, you could add a file like this to /etc/cron.d/:
+
+
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# reniced
+10 6            * * *   root    /usr/bin/reniced
+
+
+
+ -- Christian Garbs <debian@cgarbs.de>, Sun, 26 Aug 2007 20:14:24 +0200

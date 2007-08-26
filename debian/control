@@ -3,12 +3,11 @@ Section: utils
 Priority: extra
 Maintainer: Christian Garbs <debian@cgarbs.de>
 Standards-Version: 3.7.2
-Build-Depends-Indep: debhelper (>=5)
+Build-Depends: debhelper (>= 5), cdbs
 
 Package: reniced
 Architecture: all
 Depends: libbsd-resource-perl, ${perl:Depends}
-Recommends: schedutils
 Description: renice running processes based on regular expressions
  reniced takes a list of regular expressions, looks for processes
  matching them and renices the processes to given values.
@@ -16,3 +15,5 @@ Description: renice running processes based on regular expressions
  Instead of editing the scripts in /etc/init.d to give daemons the
  nicelevel you want (and get prompted at every package update because
  these files are conffiles) you can just run reniced once a day.
+ .
+  Homepage: http://www.cgarbs.de/stuff.en.html
