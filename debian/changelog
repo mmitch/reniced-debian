@@ -1,3 +1,16 @@
+reniced (1.19-1) unstable; urgency=low
+
+  * New upstream release.
+
+  * debian/control:
+    - add ${misc:Depends} to binary package
+    - move homepage from package description to Homepage: field
+    - bump policy version from 3.7.2 to 3.9.1
+  * debian/copyright:
+    - clarify license: GPL-2, not GPL
+
+ -- Christian Garbs <debian@cgarbs.de>  Sun, 19 Sep 2010 21:47:26 +0200
+
 reniced (1.17-1) unstable; urgency=low
 
   * New maintainer, as agreed with bartm.
@@ -6,7 +19,7 @@ reniced (1.17-1) unstable; urgency=low
   * Use sequence number 99 for init script.
   * Update copyright file.
   * Add README.Debian.
-  
+
  -- Christian Garbs <debian@cgarbs.de>  Sun, 26 Aug 2007 20:14:36 +0200
 
 reniced (1.7-1) unstable; urgency=low

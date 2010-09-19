@@ -2,12 +2,13 @@ Source: reniced
 Section: utils
 Priority: extra
 Maintainer: Christian Garbs <debian@cgarbs.de>
-Standards-Version: 3.7.2
+Standards-Version: 3.9.1
 Build-Depends: debhelper (>= 5), cdbs
+Homepage: http://www.cgarbs.de/stuff.en.html
 
 Package: reniced
 Architecture: all
-Depends: libbsd-resource-perl, ${perl:Depends}
+Depends: libbsd-resource-perl, ${perl:Depends}, ${misc:Depends}
 Description: renice running processes based on regular expressions
  reniced takes a list of regular expressions, looks for processes
  matching them and renices the processes to given values.
@@ -16,4 +17,3 @@ Description: renice running processes based on regular expressions
  nicelevel you want (and get prompted at every package update because
  these files are conffiles) you can just run reniced once a day.
  .
-  Homepage: http://www.cgarbs.de/stuff.en.html
