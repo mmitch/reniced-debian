@@ -1,3 +1,9 @@
+reniced (1.19-1~1) unstable; urgency=low
+
+  * Rebuilt on Lenny for cgarbs.de repository.
+
+ -- Christian Garbs <debian@cgarbs.de>  Sun, 19 Sep 2010 22:27:03 +0200
+
 reniced (1.19-1) unstable; urgency=low
 
   * New upstream release.
