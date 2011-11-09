@@ -1,4 +1,14 @@
-$Id: HISTORY,v 1.2 2007-08-05 12:21:42 mitch Exp $
+reniced HISTORY
+
+----------------------------
+2010-09-19  revision 1.19
+
+ - allow adjustment of OOM killer
+
+----------------------------
+2010-06-06  revision 1.18
+
+ - add -o parameter to change ps(1) format to filter on
 
 ----------------------------
 2007-08-05  revision 1.17

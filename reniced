@@ -1,9 +1,8 @@
 #!/usr/bin/perl -w
-# $Id: reniced,v 1.17 2007-08-05 12:19:52 mitch Exp $
 #
 # reniced - renice running processes based on regular expressions
 #
-# 2005,2007 (C) by Christian Garbs <mitch@cgarbs.de>
+# Copyright (C) 2005,2007,2010  Christian Garbs <mitch@cgarbs.de>
 # Licensed under GNU GPL.  See COPYING for details.
 
 use strict;
@@ -17,6 +16,7 @@ reniced - renice running processes based on regular expressions
 B<reniced>
 S<[B<-h>]>
 S<[B<-v>]>
+S<[B<-o> I<format>]>
 S<[I<configfile>]>
 
 =head1 OVERVIEW
@@ -45,12 +45,18 @@ When run as a user, renice only scans the user's processes (C<`ps H --user`>).
 
 =item B<-h>
 
-This prints the version number and a short help text.
+This prints the version number, a short help text and exits without
+doing anything.
 
 =item B<-v>
 
 This activates verbose mode.  Error messages, some statistics and all
 renice actions are printed to stdout.
+
+=item B<-o> I<format>
+
+Set the L<ps(1)> output format to filter on.  The default format is
+C<comm>.  See the B<-o> parameter in the L<ps(1)> manpage for details.
 
 =item I<configfile>
 
@@ -69,32 +75,72 @@ lines starting with a B<#> are ignored.
 Every line must consist of a command followed by a whitespace and a
 Perl regular expression.
 
-The command consists of a nice value, an io prority or both.  A nice
-value is given as a decimal, usually within the range of -20 to 19.
-An io priority consists of the scheduling class (B<r> for realtime,
-B<b> for best-effort and B<i> for idle) optionally followed by the
-class data (typically 0-7, lower being higher priority).
+The regular expression is matched against the L<ps(1)> output.  For
+every matched process the command is executed.
+
+A command generally takes the form of a character followed by a
+number.  Multiple commands can be given simultaneously with no spaces
+inbetween.  Sometimes the number is optional.  
+
+=head3 Command characters
+
+=over 5
+
+=item B<n>
+
+Sets the nice value of a process.  Must be followed by a number,
+usually within the range of -20 to 19.
+
+For backwards compatibility a B<n> at the beginning of the command can
+be left out (if the command starts with a number it is treated as a
+nice value).
+
+=item B<r>
+
+Sets the io priority to the realtime scheduling class.  The optional
+number is treated as class data (typically 0-7, lower being higher
+priority).
+
+=item B<b>
+
+Sets the io priority to the best-effort scheduling class.  The
+optional number is treated as class data (typically 0-7, lower being
+higher priority).
+
+=item B<i>
+
+Sets the io priority to the idle scheduling class.  No number needs to
+be given as the idle scheduling class ignores the class data value.
+
+=item B<o>
+
+Sets the OOM killer adjustment in C</proc/$PID/oom_adj> to the given
+number.
+
+=back
 
 =head3 Examples
 
 =over 5
 
-=item I<5 ^bash>
+=item C<5 ^bash>
 
 gives currently running bash shells a nice value of 5
 
-=item I<b2 ^tar> 
+=item C<b2 ^tar> 
 
-sets currently running to io priority best-effort within class 2
+sets currently running tar-processes to io priority best-effort within class 2
 
-=item I<i torrent>
+=item C<i torrent>
 
 sets currently running torrent-like applications to io priority idle
 
-=item I<-10r4 seti>
+=item C<n-10r4 seti>
 
 gives currently running seti-processes a nice value of -10 and sets
 them to realtime io priority in class 4
+
+=back
 
 =head1 MODULES NEEDED
 
@@ -104,6 +150,7 @@ This module can be obtained from L<http://www.cpan.org>.
 
 =head1 PROGRAMS NEEDED
 
+ ps
  ionice
 
 ionice is only needed if you want to change io priority.  It can be
@@ -134,11 +181,11 @@ under the GNU GPL.
 
 =head1 AVAILABILITY
 
-Look for updates ad L<http://www.cgarbs.de/stuff.en.html>.
+Look for updates at L<http://www.cgarbs.de/stuff.en.html>.
 
 =head1 SEE ALSO
 
-L<ionice(1)>, L<renice(1)>
+L<ionice(1)>, L<renice(1)>, L<ps(1)>
 
 =cut
 
@@ -151,6 +198,8 @@ my $rulefile_root = '/etc/reniced.conf';
 my $rulefile_user = '~/.reniced';
 # default debug value
 my $debug = 0;
+# default ps output format
+my $psformat = 'comm';
 
 # are we root?
 my $root = $> == 0;
@@ -170,11 +219,14 @@ sub show_help()
 {
     print << 'EOF';
 Usage:
-   reniced [-h] [-v] [configfile]
+   reniced [-h] [-v] [-o format] [configfile]
 
 Options:
      -h           print help
      -v           be verbose
+     -o format    output format to filter on
+                  see ps(1) manpage for details
+                  default: comm
      configfile   read alternative configuration file
                   default: /etc/reniced.conf for root
                            ~/.reniced for others
@@ -188,9 +240,10 @@ Command format:
    b2     set io priority to best effort class 2
    i      set io priority to idle
    -10r4  set nice value to -10 and io priority to realtime class 4
+   o-10   set OOM value /proc/$PID/oom_adj to -10
 
 Version:
-   $Id: reniced,v 1.17 2007-08-05 12:19:52 mitch Exp $
+   reniced 1.19
 EOF
     ;
 }
@@ -224,6 +277,15 @@ sub parse_options()
 # check if "-v" is given
 {
     while (@ARGV) {
+	if ($ARGV[0] eq '-o') {
+	    shift @ARGV;
+	    if (@ARGV) {
+		$psformat = shift @ARGV;
+	    } else {
+		die "-o is missing the format parameter\n";
+	    }
+	    next;
+	}
 	if ($ARGV[0] eq '-v') {
 	    shift @ARGV;
 	    $debug = 1;
@@ -263,22 +325,43 @@ sub read_rulefile()
     my $rulefile = find_rulefile();
     my @rule;
 
-    open RULES, "<$rulefile" or die "can't open `$rulefile': $!";
+    open RULES, "<$rulefile" or die "can't open `$rulefile': $!\n";
     while (my $line = <RULES>) {
 	chomp $line;
 	next if ($line =~ /^\s*$/);
 	next if ($line =~ /^#/);
-	if ($line =~ /^\s*(-?\d*[rbi]?[0-7]?)\s+(.+)/) {
+	if ($line =~ /^\s*((?:[norbi]?-?\d*)+)\s+(.+)/) {
 	    my $command = $1;
 	    my $rule = { REGEXP => $2 };
-	    if ($command =~ s/^(-?\d+)//) {
+
+	    # add missing n at start (backwards compatibility)
+	    $command =~ s/^(-?\d+)/n$1/;
+
+	    # nice value starts with n
+	    while ($command =~ s/n(-?\d+)//) {
 		$rule->{NICE} = $1;
 	    }
-	    $rule->{IOCLASS} = 1 if $command =~ s/^r//;
-	    $rule->{IOCLASS} = 2 if $command =~ s/^b//;
-	    $rule->{IOCLASS} = 3 if $command =~ s/^i//;
-	    if ($command =~ /^[0-7]$/) {
-		$rule->{IONICE} = $command;
+
+	    # OOM value starts with o
+	    while ($command =~ s/o(-?\d+)//) {
+		$rule->{OOMADJ}  = $1;
+	    }
+
+	    # ionice values start with [rbi]
+	    while ($command =~ s/([rbi])(\d+)?//) {
+		if ($1 eq 'r') {
+		    $rule->{IOCLASS} = 1;
+		} elsif ($1 eq 'b') {
+		    $rule->{IOCLASS} = 2;
+		} elsif ($1 eq 'i') {
+		    $rule->{IOCLASS} = 3;
+		} else {
+		    warn "rule line #$.: error during IOnice parsing: 1=`$1' 2=`$2' all=`$line'";
+		}
+
+		if (defined $2) {
+		    $rule->{IONICE} = $2;
+		}
 	    }
 	    if (scalar keys %{$rule} > 1) {
 		push @rule, $rule;
@@ -289,7 +372,7 @@ sub read_rulefile()
 	    warn "rules line #$. skipped: `$line'\n";
 	}
     }
-    close RULES or die "can't close `$rulefile': $!";
+    close RULES or die "can't close `$rulefile': $!\n";
     
     debug '%d rules read', scalar @rule;
     return \@rule;
@@ -301,11 +384,12 @@ sub generate_ps_command()
     my $cmdline = 'ps';
 
     if ($root) {
-	$cmdline .= ' H -eo lwp,comm';
+	$cmdline .= " H -eo lwp,$psformat";
     } else {
-	$cmdline .= " H -o lwp,comm --user $>";
+	$cmdline .= " H -o lwp,$psformat --user $>";
     }
 
+    debug 'ps commandline is: %s', $cmdline;
     return $cmdline;
 }
 
@@ -315,7 +399,7 @@ sub read_processes()
     my @proc;
     my $cmdline = generate_ps_command();
 
-    open PS, "$cmdline|" or die "can't open `$cmdline': $!";
+    open PS, "$cmdline|" or die "can't open `$cmdline': $!\n";
     {
 	my $line = <PS>; # skip first line
 	while ($line = <PS>) {
@@ -325,7 +409,7 @@ sub read_processes()
 	    push @proc, { PID => $pid, CMD => $cmd };
 	}
     }
-    close PS or die "can't close `$cmdline': $!";
+    close PS or die "can't close `$cmdline': $!\n";
 
     debug '%d processes read', scalar @proc;
     return \@proc;
@@ -340,11 +424,29 @@ sub renice_processes($$)
     foreach my $proc (@{$procs}) {
 	foreach my $rule (@{$rules}) {
 	    if ($proc->{CMD} =~ /$rule->{REGEXP}/) {
+
+		# nice
 		if (exists $rule->{NICE}) {
 		    my $success = setpriority $PRIO_PROCESS, $proc->{PID}, $rule->{NICE};
 		    debug '%snice set to %d: %d/%s'
 			, $success ? '' : 'FAILED: ', $rule->{NICE}, $proc->{PID}, $proc->{CMD};
 		}
+
+		# OOM adjust
+		if (exists $rule->{OOMADJ}) {
+		    my $procfile = '/proc/'.$proc->{PID}.'/oom_adj';
+		    my $success = 1;
+		    if ( open (PROC, '>', $procfile) ) {
+			print PROC $rule->{OOMADJ}."\n";
+			close PROC or $success = 0;
+		    } else {
+			$success = 0;
+		    }
+		    debug '%sOOM adjust set to %d: %d/%s'
+			, $success ? '' : "FAILED ($!): ", $rule->{OOMADJ}, $proc->{PID}, $proc->{CMD};
+		}
+
+		# IO nice
 		if (exists $rule->{IOCLASS}) {
 		    if (exists $rule->{IONICE}) {
 			my $success = system 'ionice', '-c', $rule->{IOCLASS}, '-p', $proc->{PID}, '-n', $rule->{IONICE};
