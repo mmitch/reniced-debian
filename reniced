@@ -1,0 +1,366 @@
+#!/usr/bin/perl -w
+# $Id: reniced,v 1.13 2007/04/20 20:35:25 mitch Exp $
+#
+# reniced - renice running processes based on regular expressions
+#
+# 2005,2007 (C) by Christian Garbs <mitch@cgarbs.de>
+# Licensed under GNU GPL.  See COPYING for details.
+
+use strict;
+
+=head1 NAME
+
+reniced - renice running processes based on regular expressions
+
+=head1 SYNOPSIS
+
+B<reniced>
+S<[B<-h>]>
+S<[B<-v>]>
+S<[I<configfile>]>
+
+=head1 OVERVIEW
+
+reniced takes a list of regular expressions, looks for processes
+matching them and renices the processes to given values.  reniced can
+also change io priorities.
+
+=head1 DESCRIPTION
+
+On start, reniced reads a configuration file.  It consists of nice
+values and regular expressions.
+
+It then scans the process table using `ps -A`.  Whenever a process
+name from the CMD column matches a regular expression, that process is
+reniced to the given value.  If a process matches multiple regular
+expressions, all rule matches are executed in order and the last match
+wins.
+
+When run as root, reniced will scan all processes.  When run as a
+user, renice only scans the user's processes.
+
+=head2 Switches
+
+=over 5
+
+=item B<-h>
+
+This prints the version number and a short help text.
+
+=item B<-v>
+
+This activates verbose mode.  Error messages, some statistics and all
+renice actions are printed to stdout.
+
+=item I<configfile>
+
+This reads the regular expressions from an alternate configfile.
+
+The default location of the configfile is /etc/reniced.conf if reniced
+is run as root, ~/.reniced otherwise.
+
+=back
+
+=head2 Configuration file format
+
+The configuration file is composed of single lines.  Empty lines and
+lines starting with a B<#> are ignored.
+
+Every line must consist of a command followed by a whitespace and a
+Perl regular expression.
+
+The command consists of a nice value, an io prority or both.  A nice
+value is given as a decimal, usually within the range of -20 to 19.
+An io priority consists of the scheduling class (B<r> for realtime,
+B<b> for best-effort and B<i> for idle) optionally followed by the
+class data (typically 0-7, lower being higher priority).
+
+=head3 Examples
+
+=over 5
+
+=item I<5 ^bash>
+
+gives currently running bash shells a nice value of 5
+
+=item I<b2 ^tar> 
+
+sets currently running to io priority best-effort within class 2
+
+=item I<i torrent>
+
+sets currently running torrent-like applications to io priority idle
+
+=item I<-10r4 seti>
+
+gives currently running seti-processes a nice value of -10 and sets
+them to realtime io priority in class 4
+
+=head1 MODULES NEEDED
+
+ use BSD::Resource;
+
+This module can be obtained from L<http://www.cpan.org>.
+
+=head1 PROGRAMS NEEDED
+
+ ionice
+
+ionice is only needed if you want to change io priority.  It can be
+obtained from L<http://rlove.org/schedutils/>.
+
+=head1 BUGS
+
+reniced can run without the BSD::Resource module.  In this case, the
+PRIO_PROCESS is set to 0.  This works on Linux 2.6.11 i686 but it
+could break on other systems.  Installing BSD::Resource is the safer
+way.
+
+Be careful using realtime priorities, don't starve other tasks.
+
+Please report bugs to <F<mitch@cgarbs.de>>.
+
+=head1 AUTHOR
+
+reniced was written by Christian Garbs <F<mitch@cgarbs.de>>.
+
+=head1 COPYRIGHT
+
+reniced is Copyright (C) 2005,2007 by Christian Garbs.  It is licensed
+under the GNU GPL.
+
+=head1 AVAILABILITY
+
+Look for updates ad L<http://www.cgarbs.de/stuff.en.html>.
+
+=head1 SEE ALSO
+
+L<ionice(1)>, L<renice(1)>
+
+=cut
+
+
+### Global settings
+
+
+# default values for rulefile position
+my $rulefile_root = '/etc/reniced.conf';
+my $rulefile_user = '~/.reniced';
+# default debug value
+my $debug = 0;
+
+# are we root?
+my $root = $> == 0;
+# a dynamically calculated constant :-)
+my $PRIO_PROCESS;
+#
+my %SCHEDULING_CLASS = ( 1 => 'realtime',
+			 2 => 'best-effort',
+			 3 => 'idle' );
+
+
+### Subroutines
+
+
+sub show_help()
+# print options
+{
+    print << 'EOF';
+Usage:
+   reniced [-h] [-v] [configfile]
+
+Options:
+     -h           print help
+     -v           be verbose
+     configfile   read alternative configuration file
+                  default: /etc/reniced.conf for root
+                           ~/.reniced for others
+
+Configuration file format:
+   # is a comment
+   numeric_nicelevel perl_regular_expression
+
+Version:
+   $Id: reniced,v 1.13 2007/04/20 20:35:25 mitch Exp $
+EOF
+    ;
+}
+
+sub debug(@)
+# print debug messages
+{
+    return unless $debug;
+    my $format = shift @_;
+    printf "$format\n", @_;
+}
+
+sub get_prio_process()
+# get the numerical value for PRIO_PROCESS
+{
+    # Check for BSD::Resource which has the constant
+    eval { require BSD::Resource; };
+    if (not $@) {
+	eval { use BSD::Resource qw(PRIO_PROCESS); };
+	$PRIO_PROCESS = PRIO_PROCESS;
+	debug 'PRIO_PROCESS set to %d via BSD::Resource', $PRIO_PROCESS;
+    } else {
+	# dirty fallback, works for my Linux 2.6.11 i686 GNU/Linux
+	# see setpriority(2) and /usr/include/bits/resource.h
+	$PRIO_PROCESS = 0;
+	debug 'PRIO_PROCESS to %d via fallback', $PRIO_PROCESS;
+    }
+}
+
+sub parse_options()
+# check if "-v" is given
+{
+    while (@ARGV) {
+	if ($ARGV[0] eq '-v') {
+	    shift @ARGV;
+	    $debug = 1;
+	    next;
+	}
+	if ($ARGV[0] eq '-h') {
+	    shift @ARGV;
+	    show_help();
+	    exit 0;
+	}
+	last;
+    }
+}
+
+sub find_rulefile()
+# find rulefile
+{
+    my $rulefile;
+
+    if ($root) {
+	$rulefile = $rulefile_root;
+    } else {
+	$rulefile = $rulefile_user;
+    }
+    if ($ARGV[0]) {
+	$rulefile = shift @ARGV;
+    }
+    $rulefile =~ s/^~/$ENV{HOME}/;
+
+    debug 'rulefile: %s', $rulefile;
+    return $rulefile;
+}
+
+sub read_rulefile()
+# read rules
+{
+    my $rulefile = find_rulefile();
+    my @rule;
+
+    open RULES, "<$rulefile" or die "can't open `$rulefile': $!";
+    while (my $line = <RULES>) {
+	chomp $line;
+	next if ($line =~ /^\s*$/);
+	next if ($line =~ /^#/);
+	if ($line =~ /^\s*(-?\d*[rbi]?[0-7]?)\s+(.+)/) {
+	    my $command = $1;
+	    my $rule = { REGEXP => $2 };
+	    if ($command =~ s/^(-?\d+)//) {
+		$rule->{NICE} = $1;
+	    }
+	    $rule->{IOCLASS} = 1 if $command =~ s/^r//;
+	    $rule->{IOCLASS} = 2 if $command =~ s/^b//;
+	    $rule->{IOCLASS} = 3 if $command =~ s/^i//;
+	    if ($command =~ /^[0-7]$/) {
+		$rule->{IONICE} = $command;
+	    }
+	    if (scalar keys %{$rule} > 1) {
+		push @rule, $rule;
+	    } else {
+		warn "rule line #$. skipped: `$line'\n";
+	    }
+	} else {
+	    warn "rules line #$. skipped: `$line'\n";
+	}
+    }
+    close RULES or die "can't close `$rulefile': $!";
+    
+    debug '%d rules read', scalar @rule;
+    return \@rule;
+}
+
+sub generate_ps_command()
+# generate ps commandline
+{
+    my $cmdline = 'ps';
+
+    if ($root) {
+	$cmdline .= ' -A';
+    } else {
+	$cmdline .= " --user $>";
+    }
+
+    return $cmdline;
+}
+
+sub read_processes()
+# read processes
+{
+    my @proc;
+    my $cmdline = generate_ps_command();
+
+    open PS, "$cmdline|" or die "can't open `$cmdline': $!";
+    {
+	my $line = <PS>; # skip first line
+	while ($line = <PS>) {
+	    chomp $line;
+	    my $pid = substr($line, 0, 5 )+ 0;
+	    my $cmd = substr($line, 24 );
+	    push @proc, { PID => $pid, CMD => $cmd };
+	}
+    }
+    close PS or die "can't close `$cmdline': $!";
+
+    debug '%d processes read', scalar @proc;
+    return \@proc;
+}
+
+sub renice_processes($$)
+# renice
+{
+    my $rules = shift;
+    my $procs = shift;
+
+    foreach my $proc (@{$procs}) {
+	foreach my $rule (@{$rules}) {
+	    if ($proc->{CMD} =~ /$rule->{REGEXP}/) {
+		if (exists $rule->{NICE}) {
+		    my $success = setpriority $PRIO_PROCESS, $proc->{PID}, $rule->{NICE};
+		    debug '%snice set to %d: %d/%s'
+			, $success ? '' : 'FAILED: ', $rule->{NICE}, $proc->{PID}, $proc->{CMD};
+		}
+		if (exists $rule->{IOCLASS}) {
+		    if (exists $rule->{IONICE}) {
+			my $success = system 'ionice', '-c', $rule->{IOCLASS}, '-p', $proc->{PID}, '-n', $rule->{IONICE};
+			debug '%sionice set to %s, class %d: %d/%s'
+			    , $success ? 'FAILED: ' : '', $SCHEDULING_CLASS{$rule->{IOCLASS}}, $rule->{IONICE}, $proc->{PID}, $proc->{CMD};
+		    } else {
+			my $success = system 'ionice', '-c', $rule->{IOCLASS}, '-p', $proc->{PID};
+			debug '%sionice set to %s: %d/%s'
+			    , $success ? 'FAILED: ' : '', $SCHEDULING_CLASS{$rule->{IOCLASS}}, $proc->{PID}, $proc->{CMD};
+		    }
+		}
+	    }
+	}
+    }
+}
+
+
+### Main program
+
+
+parse_options();
+get_prio_process();
+my $rules = read_rulefile();
+exit unless @{$rules};
+my $procs = read_processes();
+exit unless @{$procs};
+renice_processes($rules, $procs);
+exit 0;
