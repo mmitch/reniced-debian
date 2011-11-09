@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: reniced,v 1.13 2007/04/20 20:35:25 mitch Exp $
+# $Id: reniced,v 1.17 2007-08-05 12:19:52 mitch Exp $
 #
 # reniced - renice running processes based on regular expressions
 #
@@ -21,23 +21,23 @@ S<[I<configfile>]>
 
 =head1 OVERVIEW
 
-reniced takes a list of regular expressions, looks for processes
-matching them and renices the processes to given values.  reniced can
-also change io priorities.
+reniced takes a list of regular expressions, looks for processes (and
+threads) matching them and renices the processes to given values.
+reniced can also change io priorities.
 
 =head1 DESCRIPTION
 
 On start, reniced reads a configuration file.  It consists of nice
 values and regular expressions.
 
-It then scans the process table using `ps -A`.  Whenever a process
-name from the CMD column matches a regular expression, that process is
-reniced to the given value.  If a process matches multiple regular
-expressions, all rule matches are executed in order and the last match
-wins.
+It then scans the process table using the L<ps(1)> command.
+Whenever a process name from the CMD column matches a regular
+expression, that process is reniced to the given value.  If a process
+matches multiple regular expressions, all rule matches are executed in
+order and the last match wins.
 
-When run as root, reniced will scan all processes.  When run as a
-user, renice only scans the user's processes.
+When run as root, reniced will scan all processes (C<`ps H -e`>).
+When run as a user, renice only scans the user's processes (C<`ps H --user`>).
 
 =head2 Switches
 
@@ -56,8 +56,8 @@ renice actions are printed to stdout.
 
 This reads the regular expressions from an alternate configfile.
 
-The default location of the configfile is /etc/reniced.conf if reniced
-is run as root, ~/.reniced otherwise.
+The default location of the configfile is C</etc/reniced.conf> if reniced
+is run as root, C<~/.reniced> otherwise.
 
 =back
 
@@ -108,6 +108,9 @@ This module can be obtained from L<http://www.cpan.org>.
 
 ionice is only needed if you want to change io priority.  It can be
 obtained from L<http://rlove.org/schedutils/>.
+
+You also need a suitable kernel and scheduler, e.g. Linux 2.6 with
+CFQ.
 
 =head1 BUGS
 
@@ -178,10 +181,16 @@ Options:
 
 Configuration file format:
    # is a comment
-   numeric_nicelevel perl_regular_expression
+   command perl_regular_expression
+
+Command format:
+   5      set nice value to 5
+   b2     set io priority to best effort class 2
+   i      set io priority to idle
+   -10r4  set nice value to -10 and io priority to realtime class 4
 
 Version:
-   $Id: reniced,v 1.13 2007/04/20 20:35:25 mitch Exp $
+   $Id: reniced,v 1.17 2007-08-05 12:19:52 mitch Exp $
 EOF
     ;
 }
@@ -292,9 +301,9 @@ sub generate_ps_command()
     my $cmdline = 'ps';
 
     if ($root) {
-	$cmdline .= ' -A';
+	$cmdline .= ' H -eo lwp,comm';
     } else {
-	$cmdline .= " --user $>";
+	$cmdline .= " H -o lwp,comm --user $>";
     }
 
     return $cmdline;
@@ -312,7 +321,7 @@ sub read_processes()
 	while ($line = <PS>) {
 	    chomp $line;
 	    my $pid = substr($line, 0, 5 )+ 0;
-	    my $cmd = substr($line, 24 );
+	    my $cmd = substr($line, 6 );
 	    push @proc, { PID => $pid, CMD => $cmd };
 	}
     }

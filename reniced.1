@@ -129,7 +129,7 @@
 .\" ========================================================================
 .\"
 .IX Title "RENICED 1"
-.TH RENICED 1 "2007-04-20" "1.13" "reniced"
+.TH RENICED 1 "2007-08-05" "1.17" "reniced"
 .SH "NAME"
 reniced \- renice running processes based on regular expressions
 .SH "SYNOPSIS"
@@ -140,22 +140,22 @@ reniced \- renice running processes based on regular expressions
 [\fIconfigfile\fR]
 .SH "OVERVIEW"
 .IX Header "OVERVIEW"
-reniced takes a list of regular expressions, looks for processes
-matching them and renices the processes to given values.  reniced can
-also change io priorities.
+reniced takes a list of regular expressions, looks for processes (and
+threads) matching them and renices the processes to given values.
+reniced can also change io priorities.
 .SH "DESCRIPTION"
 .IX Header "DESCRIPTION"
 On start, reniced reads a configuration file.  It consists of nice
 values and regular expressions.
 .PP
-It then scans the process table using `ps \-A`.  Whenever a process
-name from the \s-1CMD\s0 column matches a regular expression, that process is
-reniced to the given value.  If a process matches multiple regular
-expressions, all rule matches are executed in order and the last match
-wins.
+It then scans the process table using the \fIps\fR\|(1) command.
+Whenever a process name from the \s-1CMD\s0 column matches a regular
+expression, that process is reniced to the given value.  If a process
+matches multiple regular expressions, all rule matches are executed in
+order and the last match wins.
 .PP
-When run as root, reniced will scan all processes.  When run as a
-user, renice only scans the user's processes.
+When run as root, reniced will scan all processes (\f(CW`ps H \-e`\fR).
+When run as a user, renice only scans the user's processes (\f(CW`ps H \-\-user`\fR).
 .Sh "Switches"
 .IX Subsection "Switches"
 .IP "\fB\-h\fR" 5
@@ -169,8 +169,8 @@ renice actions are printed to stdout.
 .IX Item "configfile"
 This reads the regular expressions from an alternate configfile.
 .Sp
-The default location of the configfile is /etc/reniced.conf if reniced
-is run as root, ~/.reniced otherwise.
+The default location of the configfile is \f(CW\*(C`/etc/reniced.conf\*(C'\fR if reniced
+is run as root, \f(CW\*(C`~/.reniced\*(C'\fR otherwise.
 .Sh "Configuration file format"
 .IX Subsection "Configuration file format"
 The configuration file is composed of single lines.  Empty lines and
@@ -215,6 +215,9 @@ This module can be obtained from <http://www.cpan.org>.
 .Sp
 ionice is only needed if you want to change io priority.  It can be
 obtained from <http://rlove.org/schedutils/>.
+.Sp
+You also need a suitable kernel and scheduler, e.g. Linux 2.6 with
+\&\s-1CFQ\s0.
 .SH "BUGS"
 .IX Header "BUGS"
 reniced can run without the BSD::Resource module.  In this case, the
